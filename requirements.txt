@@ -1,0 +1,26 @@
+# Основные библиотеки для работы с моделями
+torch>=2.0.0
+transformers>=4.30.0
+accelerate>=0.20.0
+sentencepiece>=0.1.99
+bitsandbytes>=0.41.0
+
+# RAG и векторный поиск
+sentence-transformers>=2.2.0
+# Для GPU используйте: faiss-gpu-cu121 (или faiss-gpu для вашей версии CUDA)
+# Для CPU используйте: faiss-cpu
+faiss-cpu>=1.7.4
+
+# Работа с данными
+pandas>=2.0.0
+openpyxl>=3.1.0  # для чтения .xlsx файлов
+pyarrow>=12.0.0  # для работы с Parquet
+
+# Лемматизация русского языка
+pymorphy2>=0.9.1
+pymorphy2-dicts-ru>=2.4.393442.3710985
+
+# Утилиты
+tabulate>=0.9.0
+tqdm>=4.65.0
+

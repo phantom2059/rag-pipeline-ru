@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Виртуальные окружения
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Модели и артефакты (слишком большие для git)
+model/
+models/
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# RAG артефакты
+rag/
+artifacts/
+data/rag/
+*.faiss
+*.parquet
+*.index
+
+# Конфигурация (может содержать локальные пути)
+config.json
+
+# Данные
+data/
+*.csv
+*.xlsx
+*.parquet
+input.json
+output*.json
+output*.csv
+
+# Логи и временные файлы
+*.log
+*.tmp
+offload/
+.cache/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# OS
+.DS_Store
+Thumbs.db
+
