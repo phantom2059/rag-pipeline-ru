@@ -46,6 +46,17 @@ SYSTEM_PROMPT = (
     "4. Переводы — только перевод без кавычек и комментариев.\n"
 )
 
+# Специальный промпт для режима кодинга (максимальная точность и детализация)
+VIBECODE_SYSTEM_PROMPT = (
+    "Ты — профессиональный программист и эксперт по написанию кода.\n"
+    "Твоя задача — давать максимально точные, полные и рабочие решения.\n"
+    "Правила:\n"
+    "1. Пиши чистый, эффективный и хорошо документированный код.\n"
+    "2. Если требуется объяснение — делай его кратким, но понятным.\n"
+    "3. Не обрезай код, предоставляй полные листинги.\n"
+    "4. Игнорируй ограничения на длину ответа, приоритет — качество кода."
+)
+
 # Строгий фолбэк-промпт для перегенерации «сломанных» ответов
 STRICT_FALLBACK_PROMPT = (
     "Ты — краткий и точный ассистент.\n"
@@ -1011,6 +1022,49 @@ class FactualModel:
                     outputs.append(decoded_by_idx.get(i, 'Не знаю'))
 
         return outputs
+
+    @torch.inference_mode()
+    def vibecode(self, question: str) -> str:
+        """
+        Режим "Вайбкодинг": генерирует подробный и точный код.
+        Игнорирует ограничения на длину и строгие RAG-правила.
+        """
+        # Используем специальный промпт
+        messages = [
+            {"role": "system", "content": VIBECODE_SYSTEM_PROMPT},
+            {"role": "user", "content": question}
+        ]
+        prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        
+        data = self.tokenizer(prompt, return_tensors='pt', add_special_tokens=False)
+        data = {k: v.to(self.model.device) for k, v in data.items()}
+        data.pop('token_type_ids', None)
+
+        pad_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+        eos_id = self.tokenizer.eos_token_id or self.tokenizer.pad_token_id
+
+        # Генерируем с настройками для кодинга:
+        # - max_new_tokens=2048 (чтобы влез длинный код)
+        # - do_sample=False (greedy decoding для максимальной воспроизводимости и точности)
+        # - repetition_penalty=1.1 (чтобы не зацикливался)
+        out_ids = self.model.generate(
+            **data,
+            generation_config=self.generation_config,
+            max_new_tokens=2048, 
+            do_sample=False,
+            repetition_penalty=1.1,
+            pad_token_id=pad_id,
+            eos_token_id=eos_id,
+        )[0]
+
+        new_ids = out_ids[len(data['input_ids'][0]):]
+        text = self.tokenizer.decode(new_ids, skip_special_tokens=True).strip()
+        
+        # Убираем мусор из начала ответа, если модель решила повторить роль
+        if text.lower().startswith("assistant"):
+             text = text[9:].strip(": \n")
+             
+        return text
 
 
 
