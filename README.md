@@ -63,6 +63,8 @@ pip install -U sentence-transformers
    └── chunks.parquet
    ```
    Папка может находиться в `rag/`, `artifacts/rag/` или `data/rag/` — `FactualModel` сам ищет артефакты.
+   
+   **Готовые RAG данные**: Вы можете скачать готовый RAG-индекс (RAG википедия) по [ссылке](https://disk.yandex.ru/d/tj4taNOiHZnPew). Распакуйте архив в папку `rag/` проекта.
 
 ### Быстрый сценарий (ноутбук)
 
