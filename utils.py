@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from typing import Iterable, List, Sequence, Optional
 
 import pandas as pd
 
@@ -82,6 +82,107 @@ def save_results(
         return path
 
     raise ValueError(f"Неизвестный формат сохранения: {fmt}")
+
+
+def convert_hf_dataset(
+    dataset_name: str,
+    output_path: str | Path,
+    *,
+    split: Optional[str] = None,
+    text_column: str = "text",
+    title_column: Optional[str] = None,
+    fmt: str = "json",
+    limit: Optional[int] = None,
+) -> Path:
+    """
+    Конвертирует датасет из Hugging Face в поддерживаемый формат.
+
+    Параметры:
+        dataset_name: Имя датасета на Hugging Face (например, "jtatman/python-code-dataset-500k").
+        output_path: Путь для сохранения конвертированного файла.
+        split: Раздел датасета для загрузки (например, "train", "test"). Если None, используется первый доступный.
+        text_column: Название столбца с текстом/кодом.
+        title_column: Название столбца с заголовком (опционально).
+        fmt: Формат сохранения: 'json', 'csv', 'tsv'. По умолчанию 'json'.
+        limit: Максимальное количество записей для сохранения (опционально).
+
+    Возвращает:
+        Путь к сохранённому файлу.
+
+    Пример:
+        >>> convert_hf_dataset(
+        ...     "jtatman/python-code-dataset-500k",
+        ...     "python_code.json",
+        ...     text_column="code",
+        ...     limit=1000
+        ... )
+    """
+    try:
+        from datasets import load_dataset
+    except ImportError:
+        raise ImportError(
+            "Для использования этой функции необходимо установить библиотеку datasets: "
+            "pip install datasets"
+        )
+
+    # Загрузка датасета
+    print(f"[CONVERT] Загрузка датасета: {dataset_name}")
+    if split is None:
+        ds = load_dataset(dataset_name)
+        # Используем первый доступный split
+        split = list(ds.keys())[0]
+        print(f"[CONVERT] Используется split: {split}")
+    else:
+        ds = load_dataset(dataset_name, split=split)
+
+    # Преобразование в список словарей
+    records = []
+    for i, item in enumerate(ds):
+        if limit is not None and i >= limit:
+            break
+        record = {}
+        if text_column in item:
+            record["text"] = str(item[text_column])
+        else:
+            # Если столбца нет, пытаемся найти первый текстовый столбец
+            for key, value in item.items():
+                if isinstance(value, str) and len(value) > 10:
+                    record["text"] = str(value)
+                    break
+            if "text" not in record:
+                raise ValueError(
+                    f"Столбец '{text_column}' не найден. Доступные столбцы: {list(item.keys())}"
+                )
+
+        if title_column and title_column in item:
+            record["title"] = str(item[title_column])
+        else:
+            record["title"] = ""
+
+        records.append(record)
+
+    print(f"[CONVERT] Загружено записей: {len(records)}")
+
+    # Сохранение в выбранном формате
+    path = Path(output_path).expanduser().resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    fmt = fmt.lower()
+    if fmt == "json":
+        # Формат для RAG: массив объектов с ключом 'items'
+        payload = {"items": records}
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    elif fmt == "csv":
+        df = pd.DataFrame(records)
+        df.to_csv(path, index=False, encoding="utf-8")
+    elif fmt == "tsv":
+        df = pd.DataFrame(records)
+        df.to_csv(path, index=False, sep="\t", encoding="utf-8")
+    else:
+        raise ValueError(f"Неподдерживаемый формат: {fmt}. Используйте 'json', 'csv' или 'tsv'")
+
+    print(f"[CONVERT] Сохранено в: {path}")
+    return path
 
 
 def generate_config(
