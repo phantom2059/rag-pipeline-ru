@@ -39,22 +39,37 @@ def download_model(
     if tokenizer.pad_token is None and tokenizer.eos_token is not None:
         tokenizer.add_special_tokens({"pad_token": tokenizer.eos_token})
 
-    quant_config = _build_quant_config(quantize=quantize, bits=bits)
-    device_map = _select_device_map()
-
-    print("[MODEL_DOWNLOADER] Загрузка весов...")
-    model = AutoModelForCausalLM.from_pretrained(
-        repo_id,
-        device_map=device_map,
-        quantization_config=quant_config,
-        torch_dtype=_preferred_dtype(),
-    )
-    if quantize and tokenizer.pad_token_id is not None:
-        model.resize_token_embeddings(len(tokenizer))
-
-    print("[MODEL_DOWNLOADER] Сохранение модели...")
-    model.save_pretrained(resolved_model_dir)
-    tokenizer.save_pretrained(resolved_model_dir)
+    # Проверка на пре-квантованные модели (AWQ, GPTQ)
+    is_prequantized = any(x in repo_id.upper() for x in ["AWQ", "GPTQ"])
+    if is_prequantized:
+        print(f"[MODEL_DOWNLOADER] ⚠ Обнаружена пре-квантованная модель ({repo_id}).")
+        print(f"[MODEL_DOWNLOADER] ⚠ Принудительно отключаем bitsandbytes-квантование и используем snapshot_download.")
+        quantize = False
+        
+        from huggingface_hub import snapshot_download
+        print("[MODEL_DOWNLOADER] Скачивание файлов модели (snapshot_download)...")
+        snapshot_download(repo_id=repo_id, local_dir=resolved_model_dir, local_dir_use_symlinks=False)
+        print("[MODEL_DOWNLOADER] ✓ Файлы скачаны.")
+        
+        # Сохраняем токенизатор поверх (чтобы был config.json токенизатора)
+        tokenizer.save_pretrained(resolved_model_dir)
+    else:
+        quant_config = _build_quant_config(quantize=quantize, bits=bits)
+        device_map = _select_device_map()
+    
+        print("[MODEL_DOWNLOADER] Загрузка весов...")
+        model = AutoModelForCausalLM.from_pretrained(
+            repo_id,
+            device_map=device_map,
+            quantization_config=quant_config,
+            torch_dtype=_preferred_dtype(),
+        )
+        if quantize and tokenizer.pad_token_id is not None:
+            model.resize_token_embeddings(len(tokenizer))
+    
+        print("[MODEL_DOWNLOADER] Сохранение модели...")
+        model.save_pretrained(resolved_model_dir)
+        tokenizer.save_pretrained(resolved_model_dir)
 
     print("[MODEL_DOWNLOADER] Генерация config.json...")
     generate_config(

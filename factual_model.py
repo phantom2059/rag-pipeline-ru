@@ -242,6 +242,12 @@ class FactualModel:
         cfg = AutoConfig.from_pretrained(model_source, local_files_only=local_only)
         print(f"[MODEL] ✓ Config loaded (model_type={cfg.model_type}, hidden_size={cfg.hidden_size})", file=sys.stderr)
 
+        # Защита от попытки наложить BitsAndBytes на уже квантованную модель (AWQ/GPTQ)
+        is_prequantized = any(x in self.model_name.upper() for x in ["AWQ", "GPTQ"])
+        if is_prequantized and self.quantize:
+            print(f"[MODEL] ⚠ Модель {self.model_name} уже квантована (AWQ/GPTQ). Отключаем BitsAndBytes.", file=sys.stderr)
+            self.quantize = False
+
         quant_cfg = None
         if self.quantize:
             if self.quant_bits == 4:
@@ -1067,4 +1073,55 @@ class FactualModel:
         return text
 
 
+    @torch.inference_mode()
+    def vibecode_chat(self, messages: List[Dict[str, str]], *, max_new_tokens: int | None = None) -> str:
+        """
+        Чат-режим для кодинга. Принимает историю сообщений и генерирует ответ.
+        Всегда добавляет системный промпт для строгого кодинга.
+        """
+        torch.manual_seed(self.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.seed)
+        msgs: List[Dict[str, str]] = []
+        # Принудительно ставим системный промпт в начало
+        msgs.append({"role": "system", "content": VIBECODE_SYSTEM_PROMPT})
+        # Добавляем остальную историю (user/assistant/system — как есть)
+        for m in messages or []:
+            role = m.get("role", "user")
+            content = str(m.get("content", "") or "")
+            if not content.strip():
+                continue
+            msgs.append({"role": role, "content": content})
+        prompt = self.tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+        enc = self.tokenizer(prompt, return_tensors="pt", add_special_tokens=False)
+        enc = {k: v.to(self.model.device) for k, v in enc.items()}
+        enc.pop("token_type_ids", None)
+        pad_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+        eos_id = self.tokenizer.eos_token_id or self.tokenizer.pad_token_id
+        out_ids = self.model.generate(
+            **enc,
+            generation_config=self.generation_config,
+            max_new_tokens=(max_new_tokens or 2048),
+            do_sample=False,
+            repetition_penalty=1.1,
+            pad_token_id=pad_id,
+            eos_token_id=eos_id,
+        )[0]
+        new_ids = out_ids[len(enc["input_ids"][0]):]
+        text = self.tokenizer.decode(new_ids, skip_special_tokens=True).strip()
+        if text.lower().startswith("assistant"):
+            text = text[9:].strip(": \n")
+        return text
+
+    @torch.inference_mode()
+    def vibecode_with_rag_fallback(self, question: str, *, max_new_tokens: int | None = None) -> str:
+        """
+        Генерирует код в режиме vibecode. Если ответ пустой/сломанный/«Не знаю»,
+        делает фолбэк через стандартную generate() (которая использует RAG).
+        """
+        primary = self.vibecode(question if isinstance(question, str) else str(question))
+        if not primary or self._is_broken(primary) or primary.strip().lower() == "не знаю":
+            alt = self.generate(question)
+            return alt if alt and alt.strip().lower() != "не знаю" else primary or "Не знаю"
+        return primary
 
