@@ -15,7 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         type=Path,
         default=Path("input.json"),
-        help="Файл с вопросами (JSON/CSV/XLSX/TXT).",
+        help="Файл с вопросами (JSON/CSV/TSV/XLSX/TXT).",
     )
     parser.add_argument(
         "--output",
@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=("json", "json_pairs", "csv"),
+        choices=("json", "json_pairs", "csv", "tsv"),
         default="json",
         help="Формат сохранения ответов.",
     )

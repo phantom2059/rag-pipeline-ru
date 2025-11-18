@@ -41,7 +41,7 @@ def create_rag_index(
     Строит полный RAG-индекс (chunks.parquet, index.faiss, meta.json) из входных данных.
 
     Параметры:
-        data_path: Путь к исходным данным (.json/.csv/.xlsx/.txt).
+        data_path: Путь к исходным данным (.json/.csv/.tsv/.xlsx/.txt).
         output_dir: Каталог для сохранения артефактов RAG.
         embedding_model: Имя SentenceTransformer для векторизации.
         chunk_size: Размер чанка (в символах).
@@ -111,6 +111,8 @@ def _load_documents(path: Path, *, text_column: str, title_column: str) -> List[
         return _load_from_json(path, text_column=text_column, title_column=title_column)
     if suffix == ".csv":
         return _load_from_dataframe(pd.read_csv(path), text_column=text_column, title_column=title_column)
+    if suffix == ".tsv":
+        return _load_from_dataframe(pd.read_csv(path, sep="\t"), text_column=text_column, title_column=title_column)
     if suffix in {".xlsx", ".xls"}:
         return _load_from_dataframe(pd.read_excel(path), text_column=text_column, title_column=title_column)
 

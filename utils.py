@@ -10,7 +10,7 @@ def load_questions(file_path: str | Path) -> List[str]:
     Загружает список вопросов из файла любого поддерживаемого формата.
 
     Параметры:
-        file_path: Путь к файлу с вопросами. Поддерживаются .json, .csv, .xlsx, .txt.
+        file_path: Путь к файлу с вопросами. Поддерживаются .json, .csv, .tsv, .xlsx, .txt.
 
     Возвращает:
         Список строк с вопросами без пустых значений.
@@ -24,6 +24,8 @@ def load_questions(file_path: str | Path) -> List[str]:
         return _load_questions_from_json(path)
     if suffix == ".csv":
         return _load_questions_from_csv(path)
+    if suffix == ".tsv":
+        return _load_questions_from_tsv(path)
     if suffix in {".xlsx", ".xls"}:
         return _load_questions_from_excel(path)
 
@@ -47,7 +49,7 @@ def save_results(
         questions: Список исходных вопросов (по порядку).
         answers: Полученные ответы с тем же количеством элементов.
         output_path: Путь для сохранения результата.
-        fmt: Формат сохранения. Доступно: 'json', 'json_pairs', 'csv'.
+        fmt: Формат сохранения. Доступно: 'json', 'json_pairs', 'csv', 'tsv'.
 
     Возвращает:
         Путь к сохранённому файлу.
@@ -72,6 +74,11 @@ def save_results(
     if fmt == "csv":
         df = pd.DataFrame({"question": questions, "answer": answers})
         df.to_csv(path, index=False, encoding="utf-8")
+        return path
+
+    if fmt == "tsv":
+        df = pd.DataFrame({"question": questions, "answer": answers})
+        df.to_csv(path, index=False, sep="\t", encoding="utf-8")
         return path
 
     raise ValueError(f"Неизвестный формат сохранения: {fmt}")
@@ -151,6 +158,15 @@ def _load_questions_from_json(path: Path) -> List[str]:
 
 def _load_questions_from_csv(path: Path) -> List[str]:
     df = pd.read_csv(path)
+    if "question" in df.columns:
+        series = df["question"]
+    else:
+        series = df.iloc[:, 0]
+    return _stringify_items(series.tolist())
+
+
+def _load_questions_from_tsv(path: Path) -> List[str]:
+    df = pd.read_csv(path, sep="\t")
     if "question" in df.columns:
         series = df["question"]
     else:
